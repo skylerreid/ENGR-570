@@ -1,0 +1,6 @@
+Scientific Computing: applying numerical algorithms to continuous problems
+Broadly, 3 branches: LinAlg, ODEs/PDEs, optimization
+  Here, not really focusing on optimization
+  Linearize, discretize equations and solve
+
+Kochunas recommends using Vim through CLI on the server
