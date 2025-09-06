@@ -10,8 +10,8 @@ void zfill(int x0, int y0, int size, int offset, int n, int array[n][n]) {
         return;
     }
 
-    int half = size / 2; //use this to move between quadrants
-    int quad_area = half * half; //size parameter to tell if 2x2 size has been reached
+    int half = size / 2; // move over by half of the current array size
+    int quad_area = half * half; // tell if 2x2 size has been reached
 
     // recursively go through quadrants
     zfill(x0, y0, half, offset + quad_area * 0, n, array); // top-left
@@ -21,7 +21,14 @@ void zfill(int x0, int y0, int size, int offset, int n, int array[n][n]) {
 }
 
 int main() {
-    int n = 8; // array size
+    int n;
+    printf("Enter the size of the array (power of 2): \n");
+    scanf("%d", &n);
+
+    if (n != 2 && n!= 4 && n!= 8 && n!= 16){
+        printf("n must be a power of 2 :( \n");
+        return 0;
+    }
     int arr[n][n];
     for (int y = 0; y < n; y++)
         for (int x = 0; x < n; x++)
