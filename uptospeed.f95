@@ -15,7 +15,7 @@ program uptospeed
     print *, "End of program!"
 
 contains
-
+    !functions go after main program
     function process_input(num1, num2, type) result(out_val)
         integer, intent(in) :: num1
         integer, intent(in) :: num2
