@@ -1,0 +1,162 @@
+function [S_out,V_out] = pow(Y,S_in,V_in,Type,Tol)
+Newton-Raphson Power Flow Calculations
+Notes: All quantities must be expressed in per-unit
+      N is the total number of busses in power system (including swing bus)
+Inputs:   
+         Y= matrix of admittances (NxN)
+              Y(k,k) is sum of admittances connected to bus k
+              Y(k,n) is negative of admittance between bus k and bus n
+              Y is a symmetric matrix.
+           S_in= column vector (Nx1) of complex powers supplied to system from each of the N busses.  
+                Values given for swing bus (Bus 1) are ignored.  Bus 1 powers are calculated in the function.
+           V_in= column vector (Nx1) of initial guesses for the per-unit phasor voltages at each of the N 
+                busses.  Phasors must be expressed in rectangular form.  
+           Type= vector of types of each of the N busses:
+                1= swing bus, 2= load bus, 3= voltage-controlled bus.  (Not used yet).
+            Tol= Loop exit value:  When magnitude of max power mismatch is less than this value 
+                function will terminate.
+-----------------------------------------------------------------------------------------
+The main loop is divided into the following steps:
+Step 1:  Based on current guesses for voltage angle (D) and magnitude (V), find P and Q supplied at each bus using eqs. 6.6.2 and 6.6.3
+
+Step 2:  Calculate the power mismatches by subtracting the calculated P and Q based on current guesses for voltage magnitudes and angles from the actual P and Q at each bus.
+Step 3:  Evaluate Jacobian for current bus voltages.  Here are the Jacobian equations.  (Note J4kk has a sign error.  It should be -2VkBkk):
+
+Step 4:  Find voltage magnitude and angle mismatches by solving J where  represents the voltage mismatches (angle and magnitude), and  represents the power mismatches (P and Q) found in step 2
+Step 5:  Find voltage angle and magnitude at next iteration and store in result matrices
+_________________________________________________________________
+Initialize variables based on function inputs:
+%calculating matrix entries
+zt1 = 0.01333+i*0.0574;
+zline23 = 0.0156+i*0.1478;
+zline25 = (0.0074)+i*(0.074);
+yline25 = i*4.4379e-7;
+yline23 = (7.1564e-4)+i*(5.3487e-7);
+zt2 = 0.0033+i*0.0667;
+
+y11 = 1/zt1;
+y12 = -1*y11;
+y13 = 0;
+y14 = 0;
+y15 = 0; 
+
+y22 = y11+ (1/zline23) + (yline23) + (1/zline25) + yline25;
+y23 = (-1/zline23);
+y24 = 0;
+y25 = -1/zline25;
+y21 = y12;
+
+y33 = (1/zt2) + (1/zline23) + yline23;
+y34 = 1/zt2;
+y35 = 0;
+y31 = y13;
+y32 = y23;
+
+y44 = (1/zt2);
+y41 = 0;
+y42 = 0;
+y43 = -1*y44;
+y45 = 0;
+
+y55 = (1/zline25) + yline25;
+y54 = 0;
+y53 = 0;
+y52 = y25;
+y51 = 0;
+
+%end calculating matrix entries
+
+Y = [y11 y12 y13 y14 y15; y21 y22 y23 y24 y25; y31 y32 y33 y34 y35; y41 y42 y43 y44 y45; y51 y52 y53 y54 y55];
+S_in = [2; 0; 0; -1*(1+i*0.5); -1*(1+i*0.3)];
+V_in = [(1+j*0); (1+j*0); (1+j*0); (1+j*0); (1+j*0)];
+Type = [1; 2; 2; 2; 2];
+Tol = 0.01;
+
+P= real(S_in);      %Vector of real powers
+Pcalc=zeros(size(P));  %Will hold calculated real powers based on bus voltages
+Qcalc= Pcalc;          %Will hold calculate reactive powers based on bus voltages
+P_iters= P;         %Each column will hold real powers at an iteration
+Q= imag(S_in);      %vector of reactive powers
+Q_iters= Q;
+
+N= length(V_in);    %Number of busses in system, including swing bus 
+D= angle(V_in);      %vector of voltage angles (in rad)
+D_iters= D;         %each column will hold voltage angles at an iteration
+V= abs(V_in);       %Vector of Voltage magnitudes
+V_iters= V;
+G= real(Y);         %Conductances
+B= imag(Y);         %Susceptances
+max_power_mismatch= 2*Tol;
+max_iters= 50;      %Stop if it doesn't converge after 50 iterations
+i=0;                %Counts iterations of loop
+Main loop
+while (max_power_mismatch>Tol) & (i<max_iters)
+
+
+%Step 1:  Find P and Q based on current voltage magnitudes/angles at each
+%bus 
+for k=1:N
+    Pcalc(k)= V(k)*sum(V.*(G(:,k).*cos(D(k)-D) + B(:,k).*sin(D(k)-D)));
+    Qcalc(k)= V(k)*sum(V.*(G(:,k).*sin(D(k)-D) - B(:,k).*cos(D(k)-D)));
+end
+
+%Step 2:  Find power mismatches by subtracting calculated powers from
+%actual powers
+deltaP= P - Pcalc;
+deltaQ= Q - Qcalc;
+max_power_mismatch= max(abs([deltaP(2:N);deltaQ(2:N)]));
+
+%Step 3:  Populate Jacobian matrix
+for k=1:N
+    for n=1:N
+        if n==k
+            incl= [1:k-1,k+1:N];   %don't include kth element in sums
+            Gcos= G(incl,k).*cos(D(k)-D(incl));
+            Gsin= G(incl,k).*sin(D(k)-D(incl));
+            Bcos= B(incl,k).*cos(D(k)-D(incl));
+            Bsin= B(incl,k).*sin(D(k)-D(incl));
+
+            J1(k,k)= V(k)*sum(V(incl).*(-Gsin+Bcos));
+            J2(k,k)= 2*V(k)*G(k,k)+sum(V(incl).*(Gcos+Bsin));
+            J3(k,k)= V(k)*sum(V(incl).*(Gcos+Bsin));
+            J4(k,k)= -2*V(k)*B(k,k)+sum(V(incl).*(Gsin-Bcos));   %Sign err in text eq.
+        else
+            Gcos= G(k,n)*cos(D(k)-D(n));
+            Gsin= G(k,n)*sin(D(k)-D(n));
+            Bcos= B(k,n)*cos(D(k)-D(n));
+            Bsin= B(k,n)*sin(D(k)-D(n));
+            J1(k,n)= V(k)*V(n)*(Gsin-Bcos);
+            J2(k,n)= V(k)*(Gcos+Bsin);
+            J3(k,n)= -V(k)*V(n)*(Gcos+Bsin);
+            J4(k,n)= V(k)*(Gsin-Bcos);
+        end
+    end
+end
+J= [J1(2:N,2:N),J2(2:N,2:N);J3(2:N,2:N),J4(2:N,2:N)];  %Final Jacobian.
+                                                       %Bus 1 is swing bus,
+                                                       %so left out of
+                                                       %equations
+
+ %Step 4:  Find voltage magnitude and angle mismatches
+ deltay= [deltaP(2:N);deltaQ(2:N)];     %stack power mismatch values for busses 2 
+                                        %through N in one vector
+ deltax= J\deltay;                      %deltax contains voltage magn and angle mismatches
+
+ %Step 5:  Find voltage magns and angles at next iteration and store in
+ %results matrix.
+ D= [D(1);D(2:N)+deltax(1:N-1)];         %Voltage angStep 5:  Find voltage angle and magnitude and next iteration and store in result matricesles at next iteration
+ V= [V(1);V(2:N)+deltax(N:end)];         %Voltage magnitudes at next iteration
+ D_iters= [D_iters,D];
+ V_iters= [V_iters,V];
+
+ i=i+1;                                  %inc interation counter
+end
+
+%All done: Put results in output variables
+for k=1:N
+    Pcalc(k)= V(k)*sum(V.*(G(:,k).*cos(D(k)-D) + B(:,k).*sin(D(k)-D)));
+    Qcalc(k)= V(k)*sum(V.*(G(:,k).*sin(D(k)-D) - B(:,k).*cos(D(k)-D)));
+end
+S_out= Pcalc+j*Qcalc
+V_out= V.*(cos(D)+j*sin(D))
+end

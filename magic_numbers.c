@@ -23,7 +23,14 @@
 }
 
 int main(){
-    int n = 8;
+    int n;
+    printf("Enter the size of the array (power of 2): \n");
+    scanf("%d", &n);
+
+    if (n != 2 && n!= 4 && n!= 8 && n!= 16){
+        printf("n must be a power of 2 :( \n");
+        return 0;
+    }
 
     int arr[n][n];
     for ( int y = 0; y < n; y++)
