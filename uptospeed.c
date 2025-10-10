@@ -11,6 +11,8 @@ int process_input(int x, int y, const char *fruit) {
     return num_fruits;
 }
 
+//testing push to gh from new manjaro setup
+
 int main(){
     int fruit1;
     int fruit2;
